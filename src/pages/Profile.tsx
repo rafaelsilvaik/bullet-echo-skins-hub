@@ -20,7 +20,8 @@ const Profile = () => {
     username: '',
     syndicate: '',
     about: '',
-    avatar_url: ''
+    avatar_url: '',
+    trophies: 0
   });
 
   // Redirect if not logged in
@@ -37,14 +38,16 @@ const Profile = () => {
         username: userProfile.username || '',
         syndicate: userProfile.syndicate || '',
         about: userProfile.about || '',
-        avatar_url: userProfile.avatar_url || ''
+        avatar_url: userProfile.avatar_url || '',
+        trophies: userProfile.trophies || 0
       });
     }
   }, [userProfile]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const updatedValue = name === 'trophies' ? parseInt(value) || 0 : value;
+    setFormData(prev => ({ ...prev, [name]: updatedValue }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,7 +62,8 @@ const Profile = () => {
         username: formData.username,
         syndicate: formData.syndicate || null,
         about: formData.about || null,
-        avatar_url: formData.avatar_url || null
+        avatar_url: formData.avatar_url || null,
+        trophies: formData.trophies
       });
       
       toast.success('Perfil atualizado com sucesso');
@@ -125,6 +129,17 @@ const Profile = () => {
                     value={formData.avatar_url}
                     onChange={handleInputChange}
                     placeholder="https://exemplo.com/imagem.jpg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Troféus</label>
+                  <Input
+                    name="trophies"
+                    type="number"
+                    value={formData.trophies}
+                    onChange={handleInputChange}
+                    min="0"
                   />
                 </div>
                 

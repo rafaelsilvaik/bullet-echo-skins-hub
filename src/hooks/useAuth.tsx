@@ -1,7 +1,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 import { UserProfile, getUserProfile, checkIsAdmin } from '../services/authService';
 
 type AuthContextType = {
@@ -32,6 +32,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let mounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
     
     const fetchUserProfile = async (userId: string) => {
       try {
@@ -53,22 +55,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setIsLoading(true);
         
-        // Obter a sessão atual
+        // Tentar recuperar a sessão do localStorage primeiro
+        const storedSession = localStorage.getItem('supabase.auth.token');
+        
+        // Obter a sessão atual do Supabase
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         console.log("Sessão atual obtida:", !!currentSession);
         
         if (!mounted) return;
         
-        setSession(currentSession);
-        
-        if (currentSession?.user) {
+        if (currentSession) {
+          setSession(currentSession);
           setUser(currentSession.user);
           await fetchUserProfile(currentSession.user.id);
+        } else if (storedSession && retryCount < maxRetries) {
+          // Se não há sessão atual mas existe token armazenado, tentar reconectar
+          retryCount++;
+          console.log(`Tentativa ${retryCount} de reconexão...`);
+          setTimeout(fetchSession, 1000); // Tentar novamente após 1 segundo
+          return;
         } else {
-          // Se não há sessão, limpar os estados
+          // Se não há sessão após tentativas, limpar os estados
+          setSession(null);
           setUser(null);
           setUserProfile(null);
           setIsAdmin(false);
+          localStorage.removeItem('supabase.auth.token');
         }
       } catch (err: any) {
         if (!mounted) return;
@@ -85,24 +97,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     fetchSession();
 
     // Setup auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+    const { data } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, newSession) => {
         console.log('Auth state changed:', event, !!newSession);
         
         if (!mounted) return;
         
-        if (event === 'SIGNED_OUT') {
-          // Limpar todos os estados quando o usuário faz logout
+        if (event === 'SIGNED_OUT' || event === 'USER_DELETED' as AuthChangeEvent) {
+          // Limpar todos os estados quando o usuário faz logout ou é deletado
           setSession(null);
           setUser(null);
           setUserProfile(null);
           setIsAdmin(false);
-        } else {
+          localStorage.removeItem('supabase.auth.token');
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setSession(newSession);
           setUser(newSession?.user || null);
           
           if (newSession?.user) {
             await fetchUserProfile(newSession.user.id);
+            // Armazenar o token atualizado
+            localStorage.setItem('supabase.auth.token', JSON.stringify(newSession));
           }
         }
       }
@@ -111,7 +126,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Cleanup function
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      data?.subscription.unsubscribe();
     };
   }, []);
 

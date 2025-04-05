@@ -1,3 +1,4 @@
+import { AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '../integrations/supabase/client';
 import type { Database } from '../integrations/supabase/types';
 
@@ -47,14 +48,36 @@ export const signUp = async ({ email, password }: AuthCredentials, username: str
 };
 
 export const signIn = async ({ email, password }: AuthCredentials) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) throw error;
+    if (error) throw error;
 
-  return data;
+    // Configurar listener para mudanças na sessão
+    supabase.auth.onAuthStateChange((event, session) => {
+      switch (event) {
+        case 'SIGNED_IN':
+        case 'TOKEN_REFRESHED':
+        case 'USER_UPDATED':
+          if (session) {
+            localStorage.setItem('supabase.auth.session', JSON.stringify(session));
+          }
+          break;
+        case 'SIGNED_OUT':
+        case 'USER_DELETED' as AuthChangeEvent:
+          localStorage.removeItem('supabase.auth.session');
+          break;
+      }
+    });
+
+    return data;
+  } catch (error) {
+    console.error('Erro ao fazer login:', error);
+    throw error;
+  }
 };
 
 export const signOut = async () => {
@@ -62,11 +85,17 @@ export const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     
-    // Limpar localStorage para garantir que nenhum dado de sessão persista
-    localStorage.removeItem('supabase.auth.token');
+    // Remover a sessão do localStorage
+    localStorage.removeItem('supabase.auth.session');
     
-    // Forçar atualização da página para garantir que o estado seja limpo
+    // Remover o listener de autenticação
+    const { data } = supabase.auth.onAuthStateChange(() => {});
+    if (data?.subscription) data.subscription.unsubscribe();
+    
     console.log('Logout realizado com sucesso');
+    
+    // Redirecionar para a página de login
+    window.location.href = '/login';
     
     return true;
   } catch (error) {
