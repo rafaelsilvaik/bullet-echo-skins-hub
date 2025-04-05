@@ -1,8 +1,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../integrations/supabase/client';
-import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
+import { Session, User, AuthChangeEvent, Subscription } from '@supabase/supabase-js';
 import { UserProfile, getUserProfile, checkIsAdmin } from '../services/authService';
+import { useNavigate } from 'react-router-dom';
 
 type AuthContextType = {
   session: Session | null;
@@ -11,6 +12,7 @@ type AuthContextType = {
   isAdmin: boolean;
   isLoading: boolean;
   error: Error | null;
+  isAuthenticated: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isLoading: true,
   error: null,
+  isAuthenticated: false,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -29,11 +32,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    let retryCount = 0;
-    const maxRetries = 3;
+    let authSubscription: Subscription | null = null;
     
     const fetchUserProfile = async (userId: string) => {
       try {
@@ -50,13 +53,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!mounted) return;
       }
     };
+    
+    // Função para lidar com mudanças de estado de autenticação
+    const handleAuthChange = async (event: AuthChangeEvent, session: Session | null) => {
+      console.log('Auth state changed:', event, !!session);
+      
+      if (!mounted) return;
+      
+      if (event === 'SIGNED_OUT' || event === 'USER_DELETED' as AuthChangeEvent) {
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setIsAdmin(false);
+        setIsAuthenticated(false);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(session);
+        setUser(session?.user || null);
+        setIsAuthenticated(true);
+        
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
+      }
+    };
 
     const fetchSession = async () => {
       try {
         setIsLoading(true);
-        
-        // Tentar recuperar a sessão do localStorage primeiro
-        const storedSession = localStorage.getItem('supabase.auth.token');
         
         // Obter a sessão atual do Supabase
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -67,25 +90,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (currentSession) {
           setSession(currentSession);
           setUser(currentSession.user);
+          setIsAuthenticated(true);
           await fetchUserProfile(currentSession.user.id);
-        } else if (storedSession && retryCount < maxRetries) {
-          // Se não há sessão atual mas existe token armazenado, tentar reconectar
-          retryCount++;
-          console.log(`Tentativa ${retryCount} de reconexão...`);
-          setTimeout(fetchSession, 1000); // Tentar novamente após 1 segundo
-          return;
         } else {
-          // Se não há sessão após tentativas, limpar os estados
+          // Se não há sessão, limpar os estados
           setSession(null);
           setUser(null);
           setUserProfile(null);
           setIsAdmin(false);
-          localStorage.removeItem('supabase.auth.token');
+          setIsAuthenticated(false);
         }
       } catch (err: any) {
         if (!mounted) return;
         setError(err);
         console.error('Erro na autenticação:', err);
+        setIsAuthenticated(false);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -97,41 +116,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     fetchSession();
 
     // Setup auth state change listener
-    const { data } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, newSession) => {
-        console.log('Auth state changed:', event, !!newSession);
-        
-        if (!mounted) return;
-        
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED' as AuthChangeEvent) {
-          // Limpar todos os estados quando o usuário faz logout ou é deletado
-          setSession(null);
-          setUser(null);
-          setUserProfile(null);
-          setIsAdmin(false);
-          localStorage.removeItem('supabase.auth.token');
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          setSession(newSession);
-          setUser(newSession?.user || null);
-          
-          if (newSession?.user) {
-            await fetchUserProfile(newSession.user.id);
-            // Armazenar o token atualizado
-            localStorage.setItem('supabase.auth.token', JSON.stringify(newSession));
-          }
-        }
+    const { data } = supabase.auth.onAuthStateChange(handleAuthChange);
+    
+    // Verificar a sessão novamente quando o componente é montado
+    // Isso garante que a sessão seja recuperada mesmo após atualizações de página
+    fetchSession();
+    
+    // Verificar a sessão periodicamente para garantir que ela não expire
+    const sessionCheckInterval = setInterval(() => {
+      if (mounted) {
+        console.log('Verificando sessão periodicamente...');
+        fetchSession();
       }
-    );
+    }, 5 * 60 * 1000); // Verificar a cada 5 minutos
+    
+    // Guardar a referência da inscrição para limpeza
+    authSubscription = data?.subscription || null;
 
     // Cleanup function
     return () => {
       mounted = false;
-      data?.subscription.unsubscribe();
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+      // Limpar o intervalo de verificação de sessão
+      clearInterval(sessionCheckInterval);
     };
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, user, userProfile, isAdmin, isLoading, error }}>
+    <AuthContext.Provider value={{ session, user, userProfile, isAdmin, isLoading, error, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

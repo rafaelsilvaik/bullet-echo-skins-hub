@@ -1,4 +1,4 @@
-import { AuthChangeEvent } from '@supabase/supabase-js';
+import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '../integrations/supabase/client';
 import type { Database } from '../integrations/supabase/types';
 
@@ -56,22 +56,8 @@ export const signIn = async ({ email, password }: AuthCredentials) => {
 
     if (error) throw error;
 
-    // Configurar listener para mudanças na sessão
-    supabase.auth.onAuthStateChange((event, session) => {
-      switch (event) {
-        case 'SIGNED_IN':
-        case 'TOKEN_REFRESHED':
-        case 'USER_UPDATED':
-          if (session) {
-            localStorage.setItem('supabase.auth.session', JSON.stringify(session));
-          }
-          break;
-        case 'SIGNED_OUT':
-        case 'USER_DELETED' as AuthChangeEvent:
-          localStorage.removeItem('supabase.auth.session');
-          break;
-      }
-    });
+    // Não precisamos configurar o listener aqui, pois já está no AuthProvider
+    // O Supabase já gerencia a persistência da sessão internamente
 
     return data;
   } catch (error) {
@@ -85,17 +71,14 @@ export const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     
-    // Remover a sessão do localStorage
-    localStorage.removeItem('supabase.auth.session');
-    
-    // Remover o listener de autenticação
-    const { data } = supabase.auth.onAuthStateChange(() => {});
-    if (data?.subscription) data.subscription.unsubscribe();
+    // Não precisamos remover manualmente a sessão do localStorage
+    // ou gerenciar listeners, o Supabase cuida disso internamente
     
     console.log('Logout realizado com sucesso');
     
-    // Redirecionar para a página de login
-    window.location.href = '/login';
+    // Não redirecionamos diretamente aqui para permitir que o AuthProvider
+    // gerencie o estado de autenticação e o redirecionamento
+    // O redirecionamento será feito pelo componente que chamou esta função
     
     return true;
   } catch (error) {

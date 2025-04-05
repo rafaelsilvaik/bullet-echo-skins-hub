@@ -24,12 +24,8 @@ const Profile = () => {
     trophies: 0
   });
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    }
-  }, [user, navigate]);
+  // Não precisamos mais deste redirecionamento manual
+  // O componente ProtectedRoute já cuida disso para nós
   
   // Initialize form with profile data
   useEffect(() => {

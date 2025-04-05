@@ -1,22 +1,31 @@
 
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import AuthLayout from '../components/auth/AuthLayout';
 import LoginForm from '../components/auth/LoginForm';
 import { useAuth } from '../hooks/useAuth';
 import { isUsingRealSupabaseCredentials } from '../services/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { signIn } from '../services/authService';
 
 const Login = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
   
   useEffect(() => {
-    if (user) {
-      navigate('/');
+    if (user || isAuthenticated) {
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isAuthenticated, navigate, location]);
 
   return (
     <AuthLayout
@@ -36,7 +45,29 @@ const Login = () => {
           </AlertDescription>
         </Alert>
       )}
-      <LoginForm />
+      <LoginForm 
+        formData={formData}
+        setFormData={setFormData}
+        handleSubmit={async (e) => {
+          e.preventDefault();
+          setIsLoading(true);
+
+          try {
+            await signIn(formData);
+            toast.success('Login realizado com sucesso!');
+            
+            // Redirecionar para a página anterior ou para a home
+            const from = location.state?.from?.pathname || '/';
+            navigate(from, { replace: true });
+          } catch (error) {
+            console.error('Erro no login:', error);
+            toast.error(error.message || 'Falha no login. Verifique suas credenciais.');
+          } finally {
+            setIsLoading(false);
+          }
+        }}
+        isLoading={isLoading}
+      />
     </AuthLayout>
   );
 };

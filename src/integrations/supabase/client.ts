@@ -9,4 +9,26 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Configurar o cliente Supabase com persistência de sessão aprimorada
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'implicit',
+    storage: localStorage,
+    storageKey: 'supabase.auth.token',
+  }
+});
+
+// Verificar se há uma sessão ativa ao inicializar
+const initializeAuth = async () => {
+  try {
+    const { data } = await supabase.auth.getSession();
+    console.log("Sessão inicializada:", !!data.session);
+  } catch (error) {
+    console.error("Erro ao inicializar sessão:", error);
+  }
+};
+
+initializeAuth();

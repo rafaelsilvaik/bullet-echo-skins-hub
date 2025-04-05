@@ -1,37 +1,15 @@
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { signIn } from '../../services/authService';
-import { toast } from "sonner";
 import { Lock, Mail } from 'lucide-react';
+import { AuthCredentials } from '../../services/authService';
 
-const LoginForm = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
+interface LoginFormProps {
+  formData: AuthCredentials;
+  setFormData: (data: AuthCredentials) => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  isLoading: boolean;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password) {
-      toast.error('Por favor, preencha todos os campos');
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      await signIn({ email, password });
-      toast.success('Login realizado com sucesso!');
-      navigate('/');
-    } catch (error: any) {
-      console.error('Erro no login:', error);
-      toast.error(error.message || 'Erro ao fazer login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+const LoginForm = ({ formData, setFormData, handleSubmit, isLoading }: LoginFormProps) => {
 
   return (
     <div className="w-full max-w-md">
@@ -47,8 +25,8 @@ const LoginForm = () => {
             <input
               id="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="bg-bullet-darkgray border border-gray-700 text-white block w-full pl-10 pr-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-bullet-red focus:border-bullet-red transition-all"
               placeholder="seu.email@exemplo.com"
               required
@@ -67,8 +45,8 @@ const LoginForm = () => {
             <input
               id="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               className="bg-bullet-darkgray border border-gray-700 text-white block w-full pl-10 pr-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-bullet-red focus:border-bullet-red transition-all"
               placeholder="********"
               required

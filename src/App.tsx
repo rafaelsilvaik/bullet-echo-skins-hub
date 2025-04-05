@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
+import RequireAuth from "./components/auth/RequireAuth";
 
 // Páginas
 import Home from "./pages/Home";
@@ -45,11 +46,31 @@ const App = () => {
                 <Route path="/register" element={<Register />} />
                 <Route path="/heroes" element={<Heroes />} />
                 <Route path="/hero/:id" element={<HeroDetail />} />
-                <Route path="/hero/:id/edit" element={<HeroEdit />} />
-                <Route path="/checklist" element={<Checklist />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/profile" element={<Profile />} />
+                <Route path="/hero/:id/edit" element={
+                  <RequireAuth>
+                    <HeroEdit />
+                  </RequireAuth>
+                } />
+                <Route path="/checklist" element={
+                  <RequireAuth>
+                    <Checklist />
+                  </RequireAuth>
+                } />
+                <Route path="/chat" element={
+                  <RequireAuth>
+                    <Chat />
+                  </RequireAuth>
+                } />
+                <Route path="/admin" element={
+                  <RequireAuth requireAdmin={true}>
+                    <Admin />
+                  </RequireAuth>
+                } />
+                <Route path="/profile" element={
+                  <RequireAuth>
+                    <Profile />
+                  </RequireAuth>
+                } />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
