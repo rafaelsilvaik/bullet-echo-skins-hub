@@ -126,4 +126,8 @@ export const useAuth = () => {
   return useContext(AuthContext);
 };
 
-export default useAuth;
+// Remove these redundant exports
+// export function useAuth() {
+//   return useContext(AuthContext);
+// };
+// export default useAuth;
